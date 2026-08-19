@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Soil Fertility & Crop Recommendation</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; background: #f5f5f0; }
+  h1 { color: #2d4a1e; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: white; padding: 20px; border-radius: 8px; }
+  .field { display: flex; flex-direction: column; }
+  label { font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #444; }
+  input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  button { margin-top: 20px; padding: 14px; width: 100%; background: #2d4a1e; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
+  button:hover { background: #3d6428; }
+  #results { margin-top: 24px; }
+  .result-card { background: white; padding: 20px; border-radius: 8px; margin-bottom: 16px; border-left: 5px solid #2d4a1e; }
+  .result-card h3 { margin-top: 0; }
+  .confidence { color: #666; font-size: 14px; }
+  .factors { font-size: 13px; color: #555; margin-top: 8px; }
+  .note { font-size: 12px; color: #a05a2c; font-style: italic; margin-top: 8px; }
+  .error { background: #fbeaea; color: #a4382c; padding: 12px; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<h1>Soil Fertility & Crop Recommendation</h1>
+<p>Enter soil readings to get fertility, crop, and fertilizer recommendations.</p>
+
+<form id="soilForm">
+  <div class="form-grid">
+    <div class="field"><label>Nitrogen (N)</label><input type="number" id="N" value="90" step="any" required></div>
+    <div class="field"><label>Phosphorus (P)</label><input type="number" id="P" value="42" step="any" required></div>
+    <div class="field"><label>Potassium (K)</label><input type="number" id="K" value="43" step="any" required></div>
+    <div class="field"><label>pH</label><input type="number" id="pH" value="6.5" step="any" required></div>
+    <div class="field"><label>EC</label><input type="number" id="EC" value="0.5" step="any" required></div>
+    <div class="field"><label>Organic Carbon (OC)</label><input type="number" id="OC" value="0.6" step="any" required></div>
+    <div class="field"><label>Sulfur (S)</label><input type="number" id="S" value="10" step="any" required></div>
+    <div class="field"><label>Zinc (Zn)</label><input type="number" id="Zn" value="0.5" step="any" required></div>
+    <div class="field"><label>Iron (Fe)</label><input type="number" id="Fe" value="1.0" step="any" required></div>
+    <div class="field"><label>Copper (Cu)</label><input type="number" id="Cu" value="0.3" step="any" required></div>
+    <div class="field"><label>Manganese (Mn)</label><input type="number" id="Mn" value="2.0" step="any" required></div>
+    <div class="field"><label>Boron (B)</label><input type="number" id="B" value="0.5" step="any" required></div>
+    <div class="field"><label>Temperature (°C)</label><input type="number" id="temperature" value="25" step="any" required></div>
+    <div class="field"><label>Humidity (%)</label><input type="number" id="humidity" value="80" step="any" required></div>
+    <div class="field"><label>Rainfall (mm)</label><input type="number" id="rainfall" value="200" step="any" required></div>
+    <div class="field"><label>Moisture (%)</label><input type="number" id="moisture" value="40" step="any" required></div>
+    <div class="field">
+      <label>Soil Type</label>
+      <select id="soil_type">
+        <option>Sandy</option>
+        <option selected>Loamy</option>
+        <option>Black</option>
+        <option>Red</option>
+        <option>Clayey</option>
+      </select>
+    </div>
+  </div>
+  <button type="submit">Get Recommendation</button>
+</form>
+
+<div id="results"></div>
+
+<script>
+document.getElementById('soilForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const payload = {
+    N: parseFloat(document.getElementById('N').value),
+    P: parseFloat(document.getElementById('P').value),
+    K: parseFloat(document.getElementById('K').value),
+    pH: parseFloat(document.getElementById('pH').value),
+    EC: parseFloat(document.getElementById('EC').value),
+    OC: parseFloat(document.getElementById('OC').value),
+    S: parseFloat(document.getElementById('S').value),
+    Zn: parseFloat(document.getElementById('Zn').value),
+    Fe: parseFloat(document.getElementById('Fe').value),
+    Cu: parseFloat(document.getElementById('Cu').value),
+    Mn: parseFloat(document.getElementById('Mn').value),
+    B: parseFloat(document.getElementById('B').value),
+    temperature: parseFloat(document.getElementById('temperature').value),
+    humidity: parseFloat(document.getElementById('humidity').value),
+    rainfall: parseFloat(document.getElementById('rainfall').value),
+    moisture: parseFloat(document.getElementById('moisture').value),
+    soil_type: document.getElementById('soil_type').value
+  };
+
+  const resultsDiv = document.getElementById('results');
+  resultsDiv.innerHTML = '<p>Loading...</p>';
+
+  try {
+    const response = await fetch('/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    resultsDiv.innerHTML = `
+      <div class="result-card">
+        <h3>Soil Fertility: ${data.fertility.class}</h3>
+        <div class="confidence">Confidence: ${(data.fertility.confidence * 100).toFixed(1)}%</div>
+        <div class="factors">Top factors: ${data.fertility.top_factors.join(', ')}</div>
+      </div>
+
+      <div class="result-card">
+        <h3>Recommended Crop: ${data.recommended_crop.crop}</h3>
+        <div class="confidence">Confidence: ${(data.recommended_crop.confidence * 100).toFixed(1)}%</div>
+        <div class="factors">Top factors: ${data.recommended_crop.top_factors.join(', ')}</div>
+      </div>
+
+      <div class="result-card">
+        <h3>Recommended Fertilizer: ${data.recommended_fertilizer.fertilizer}</h3>
+        <div class="confidence">Confidence: ${(data.recommended_fertilizer.confidence * 100).toFixed(1)}%</div>
+        <div class="factors">Top factors: ${data.recommended_fertilizer.top_factors.join(', ')}</div>
+        ${data.recommended_fertilizer.note ? `<div class="note">${data.recommended_fertilizer.note}</div>` : ''}
+      </div>
+    `;
+  } catch (err) {
+    resultsDiv.innerHTML = `<div class="error">Error: ${err.message}. Make sure the backend server is running at http://127.0.0.1:8000</div>`;
+  }
+});
+</script>
+
+</body>
+</html>
