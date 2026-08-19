@@ -2,129 +2,333 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Soil Fertility & Crop Recommendation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TerraIQ — Soil Fertility Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Noto+Sans+Tamil:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; background: #f5f5f0; }
-  h1 { color: #2d4a1e; }
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: white; padding: 20px; border-radius: 8px; }
-  .field { display: flex; flex-direction: column; }
-  label { font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #444; }
-  input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
-  button { margin-top: 20px; padding: 14px; width: 100%; background: #2d4a1e; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
-  button:hover { background: #3d6428; }
-  #results { margin-top: 24px; }
-  .result-card { background: white; padding: 20px; border-radius: 8px; margin-bottom: 16px; border-left: 5px solid #2d4a1e; }
-  .result-card h3 { margin-top: 0; }
-  .confidence { color: #666; font-size: 14px; }
-  .factors { font-size: 13px; color: #555; margin-top: 8px; }
-  .note { font-size: 12px; color: #a05a2c; font-style: italic; margin-top: 8px; }
-  .error { background: #fbeaea; color: #a4382c; padding: 12px; border-radius: 6px; }
+  :root{
+    --horizon-o:#241a14; --horizon-a:#4a3324; --horizon-b:#8a5f3c;
+    --growth:#5c7a4a; --mineral:#5b7d8c; --paper:#f6f2e9; --ink:#241a14;
+    --ink-soft:#6b5a49; --danger:#a4503a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ font-family:'Inter',sans-serif; background:var(--paper); color:var(--ink); line-height:1.5; }
+  [lang-ta]{ font-family:'Noto Sans Tamil','Inter',sans-serif; }
+
+  header{ background:var(--horizon-o); color:var(--paper); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; }
+  .logo{ font-family:'Fraunces',serif; font-size:22px; font-weight:600; }
+  .logo span{ color:var(--growth); }
+  .lang-toggle{ display:flex; gap:4px; background:rgba(255,255,255,0.08); border-radius:20px; padding:3px; }
+  .lang-btn{ border:none; background:transparent; color:#cfc3b3; padding:6px 14px; border-radius:16px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .lang-btn.active{ background:var(--growth); color:var(--horizon-o); }
+
+  .hero{ background:linear-gradient(180deg,var(--horizon-o) 0%, var(--horizon-a) 100%); color:var(--paper); padding:44px 24px 56px; text-align:center; }
+  .hero h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(1.8rem,4vw,2.6rem); margin-bottom:12px; }
+  .hero p{ color:#cfc3b3; max-width:560px; margin:0 auto; font-size:15px; }
+
+  main{ max-width:980px; margin:-30px auto 60px; padding:0 24px; }
+  .panel{ background:#fff; border-radius:10px; box-shadow:0 16px 40px -20px rgba(0,0,0,0.35); }
+  .grid{ display:grid; grid-template-columns:1.1fr 1fr; }
+  @media (max-width:860px){ .grid{ grid-template-columns:1fr; } }
+  .form-side{ padding:32px; border-right:1px solid #eee; }
+  @media (max-width:860px){ .form-side{ border-right:none; border-bottom:1px solid #eee; } }
+  .section-title{ font-family:'Fraunces',serif; font-size:20px; margin-bottom:20px; }
+  .field-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field.full{ grid-column:1/-1; }
+  .field label{ font-size:12px; font-weight:600; color:var(--ink-soft); }
+  .field input, .field select{ padding:9px 10px; border:1.5px solid #ddd; border-radius:6px; font-size:14px; font-family:inherit; }
+  .field input:focus, .field select:focus{ outline:none; border-color:var(--growth); }
+  .predict-btn{ margin-top:22px; width:100%; padding:14px; background:var(--horizon-o); color:var(--paper); border:none; border-radius:6px; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .predict-btn:hover{ background:var(--growth); color:var(--horizon-o); }
+  .predict-btn:disabled{ opacity:0.6; cursor:wait; }
+
+  .result-side{ padding:32px; }
+  .empty-state{ text-align:center; color:var(--ink-soft); padding:60px 20px; font-size:14px; }
+  .result-block{ display:none; }
+  .result-block.show{ display:block; }
+  .fert-badge{ display:inline-block; font-weight:700; font-size:13px; padding:6px 14px; border-radius:20px; text-transform:uppercase; }
+  .fert-High{ background:#eaf3de; color:#3b6d11; }
+  .fert-Medium{ background:#faeeda; color:#854f0b; }
+  .fert-Low{ background:#faece7; color:var(--danger); }
+  canvas{ max-height:180px; margin:16px 0; }
+  .crop-card{ margin-top:18px; padding:14px 16px; background:#f8f6f0; border-radius:8px; }
+  .crop-card .label{ font-size:11px; text-transform:uppercase; color:var(--ink-soft); font-weight:600; }
+  .crop-card .name{ font-family:'Fraunces',serif; font-size:19px; margin-top:2px; }
+  .note{ font-size:12px; color:var(--danger); font-style:italic; margin-top:8px; }
+  .error-box{ margin-top:14px; padding:12px; background:#faece7; border-radius:6px; color:var(--danger); font-size:13px; display:none; }
+
+  .chat-fab{ position:fixed; bottom:24px; right:24px; width:56px; height:56px; border-radius:50%; background:var(--horizon-o); color:var(--paper); border:none; font-size:24px; cursor:pointer; box-shadow:0 8px 20px rgba(0,0,0,0.3); z-index:100; }
+  .chat-panel{ position:fixed; bottom:92px; right:24px; width:340px; max-width:90vw; height:440px; background:#fff; border-radius:12px; box-shadow:0 16px 40px rgba(0,0,0,0.25); display:none; flex-direction:column; z-index:100; overflow:hidden; }
+  .chat-panel.open{ display:flex; }
+  .chat-header{ background:var(--horizon-o); color:var(--paper); padding:14px 16px; font-weight:600; font-size:14px; }
+  .chat-messages{ flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .msg{ max-width:85%; padding:8px 12px; border-radius:10px; font-size:13px; line-height:1.4; }
+  .msg.bot{ background:#f0ede4; align-self:flex-start; }
+  .msg.user{ background:var(--growth); color:#fff; align-self:flex-end; }
+  .chat-input-row{ display:flex; border-top:1px solid #eee; }
+  .chat-input-row input{ flex:1; border:none; padding:12px; font-size:13px; font-family:inherit; }
+  .chat-input-row input:focus{ outline:none; }
+  .chat-input-row button{ border:none; background:var(--growth); color:#fff; padding:0 16px; cursor:pointer; }
+
+  footer{ text-align:center; padding:24px; color:var(--ink-soft); font-size:12px; }
 </style>
 </head>
 <body>
 
-<h1>Soil Fertility & Crop Recommendation</h1>
-<p>Enter soil readings to get fertility, crop, and fertilizer recommendations.</p>
+<header>
+  <div class="logo">Terra<span>IQ</span></div>
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('en')">English</button>
+    <button class="lang-btn" onclick="setLang('ta')">தமிழ்</button>
+  </div>
+</header>
 
-<form id="soilForm">
-  <div class="form-grid">
-    <div class="field"><label>Nitrogen (N)</label><input type="number" id="N" value="90" step="any" required></div>
-    <div class="field"><label>Phosphorus (P)</label><input type="number" id="P" value="42" step="any" required></div>
-    <div class="field"><label>Potassium (K)</label><input type="number" id="K" value="43" step="any" required></div>
-    <div class="field"><label>pH</label><input type="number" id="pH" value="6.5" step="any" required></div>
-    <div class="field"><label>EC</label><input type="number" id="EC" value="0.5" step="any" required></div>
-    <div class="field"><label>Organic Carbon (OC)</label><input type="number" id="OC" value="0.6" step="any" required></div>
-    <div class="field"><label>Sulfur (S)</label><input type="number" id="S" value="10" step="any" required></div>
-    <div class="field"><label>Zinc (Zn)</label><input type="number" id="Zn" value="0.5" step="any" required></div>
-    <div class="field"><label>Iron (Fe)</label><input type="number" id="Fe" value="1.0" step="any" required></div>
-    <div class="field"><label>Copper (Cu)</label><input type="number" id="Cu" value="0.3" step="any" required></div>
-    <div class="field"><label>Manganese (Mn)</label><input type="number" id="Mn" value="2.0" step="any" required></div>
-    <div class="field"><label>Boron (B)</label><input type="number" id="B" value="0.5" step="any" required></div>
-    <div class="field"><label>Temperature (°C)</label><input type="number" id="temperature" value="25" step="any" required></div>
-    <div class="field"><label>Humidity (%)</label><input type="number" id="humidity" value="80" step="any" required></div>
-    <div class="field"><label>Rainfall (mm)</label><input type="number" id="rainfall" value="200" step="any" required></div>
-    <div class="field"><label>Moisture (%)</label><input type="number" id="moisture" value="40" step="any" required></div>
-    <div class="field">
-      <label>Soil Type</label>
-      <select id="soil_type">
-        <option>Sandy</option>
-        <option selected>Loamy</option>
-        <option>Black</option>
-        <option>Red</option>
-        <option>Clayey</option>
-      </select>
+<div class="hero">
+  <h1 data-i18n="heroTitle">Read your soil before you plant</h1>
+  <p data-i18n="heroSub">Ensemble ML predicts fertility, crop, and fertilizer — with reasoning you can see.</p>
+</div>
+
+<main>
+  <div class="panel">
+    <div class="grid">
+      <div class="form-side">
+        <div class="section-title" data-i18n="formTitle">Soil sample</div>
+        <div class="field-grid">
+          <div class="field"><label data-i18n="N">Nitrogen (N)</label><input type="number" id="N" value="90" step="any"></div>
+          <div class="field"><label data-i18n="P">Phosphorus (P)</label><input type="number" id="P" value="42" step="any"></div>
+          <div class="field"><label data-i18n="K">Potassium (K)</label><input type="number" id="K" value="43" step="any"></div>
+          <div class="field"><label data-i18n="pH">pH</label><input type="number" id="pH" value="6.5" step="any"></div>
+          <div class="field"><label data-i18n="EC">EC</label><input type="number" id="EC" value="0.5" step="any"></div>
+          <div class="field"><label data-i18n="OC">Organic Carbon</label><input type="number" id="OC" value="0.6" step="any"></div>
+          <div class="field"><label data-i18n="S">Sulfur (S)</label><input type="number" id="S" value="10" step="any"></div>
+          <div class="field"><label data-i18n="Zn">Zinc (Zn)</label><input type="number" id="Zn" value="0.5" step="any"></div>
+          <div class="field"><label data-i18n="Fe">Iron (Fe)</label><input type="number" id="Fe" value="1.0" step="any"></div>
+          <div class="field"><label data-i18n="Cu">Copper (Cu)</label><input type="number" id="Cu" value="0.3" step="any"></div>
+          <div class="field"><label data-i18n="Mn">Manganese (Mn)</label><input type="number" id="Mn" value="2.0" step="any"></div>
+          <div class="field"><label data-i18n="B">Boron (B)</label><input type="number" id="B" value="0.5" step="any"></div>
+          <div class="field"><label data-i18n="temp">Temperature (°C)</label><input type="number" id="temperature" value="25" step="any"></div>
+          <div class="field"><label data-i18n="humidity">Humidity (%)</label><input type="number" id="humidity" value="80" step="any"></div>
+          <div class="field"><label data-i18n="rainfall">Rainfall (mm)</label><input type="number" id="rainfall" value="200" step="any"></div>
+          <div class="field"><label data-i18n="moisture">Moisture (%)</label><input type="number" id="moisture" value="40" step="any"></div>
+          <div class="field full">
+            <label data-i18n="soilType">Soil Type</label>
+            <select id="soil_type">
+              <option>Sandy</option><option selected>Loamy</option><option>Black</option><option>Red</option><option>Clayey</option>
+            </select>
+          </div>
+        </div>
+        <button class="predict-btn" id="predictBtn" onclick="runPredict()" data-i18n="predictBtn">Get Recommendation</button>
+        <div class="error-box" id="errorBox"></div>
+      </div>
+
+      <div class="result-side">
+        <div class="empty-state" id="emptyState" data-i18n="emptyState">Fill in your soil readings and click Get Recommendation to see results.</div>
+
+        <div class="result-block" id="resultBlock">
+          <div data-i18n="fertLabel" style="font-size:11px;text-transform:uppercase;color:var(--ink-soft);font-weight:600;margin-bottom:8px;">Soil fertility</div>
+          <div id="fertBadge" class="fert-badge">—</div>
+          <canvas id="fertChart"></canvas>
+
+          <div class="crop-card">
+            <div class="label" data-i18n="cropLabel">Recommended crop</div>
+            <div class="name" id="cropName">—</div>
+          </div>
+          <div class="crop-card">
+            <div class="label" data-i18n="fertLabel2">Recommended fertilizer</div>
+            <div class="name" id="fertName">—</div>
+            <div class="note" id="fertNote"></div>
+          </div>
+
+          <div style="font-size:11px;text-transform:uppercase;color:var(--ink-soft);font-weight:600;margin-top:20px;" data-i18n="factorsLabel">Why (SHAP factors)</div>
+          <canvas id="factorsChart"></canvas>
+        </div>
+      </div>
     </div>
   </div>
-  <button type="submit">Get Recommendation</button>
-</form>
+</main>
 
-<div id="results"></div>
+<footer data-i18n="footer">TerraIQ — Random Forest + XGBoost ensemble, explained with SHAP</footer>
+
+<button class="chat-fab" onclick="toggleChat()">💬</button>
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-header" data-i18n="chatTitle">Ask about soil & farming</div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-input-row">
+    <input type="text" id="chatInput" data-i18n-placeholder="chatPlaceholder" placeholder="Ask a question...">
+    <button onclick="sendChat()">→</button>
+  </div>
+</div>
 
 <script>
-document.getElementById('soilForm').addEventListener('submit', async function(e) {
-  e.preventDefault();
+const translations = {
+  en: {
+    heroTitle: "Read your soil before you plant",
+    heroSub: "Ensemble ML predicts fertility, crop, and fertilizer — with reasoning you can see.",
+    formTitle: "Soil sample",
+    N: "Nitrogen (N)", P: "Phosphorus (P)", K: "Potassium (K)", pH: "pH", EC: "EC",
+    OC: "Organic Carbon", S: "Sulfur (S)", Zn: "Zinc (Zn)", Fe: "Iron (Fe)",
+    Cu: "Copper (Cu)", Mn: "Manganese (Mn)", B: "Boron (B)",
+    temp: "Temperature (°C)", humidity: "Humidity (%)", rainfall: "Rainfall (mm)",
+    moisture: "Moisture (%)", soilType: "Soil Type",
+    predictBtn: "Get Recommendation",
+    emptyState: "Fill in your soil readings and click Get Recommendation to see results.",
+    fertLabel: "Soil fertility", cropLabel: "Recommended crop", fertLabel2: "Recommended fertilizer",
+    factorsLabel: "Why (SHAP factors)",
+    footer: "TerraIQ — Random Forest + XGBoost ensemble, explained with SHAP",
+    chatTitle: "Ask about soil & farming", chatPlaceholder: "Ask a question...",
+    loading: "Analyzing..."
+  },
+  ta: {
+    heroTitle: "நடவு செய்யும் முன் உங்கள் மண்ணைப் புரிந்துகொள்ளுங்கள்",
+    heroSub: "இயந்திர கற்றல் மாதிரிகள் மண் வளம், பயிர் மற்றும் உரத்தை கணிக்கின்றன — காரணத்துடன்.",
+    formTitle: "மண் மாதிரி",
+    N: "நைட்ரஜன் (N)", P: "பாஸ்பரஸ் (P)", K: "பொட்டாசியம் (K)", pH: "pH", EC: "EC",
+    OC: "கரிம கார்பன்", S: "சல்பர் (S)", Zn: "துத்தநாகம் (Zn)", Fe: "இரும்பு (Fe)",
+    Cu: "செம்பு (Cu)", Mn: "மாங்கனீசு (Mn)", B: "போரான் (B)",
+    temp: "வெப்பநிலை (°C)", humidity: "ஈரப்பதம் (%)", rainfall: "மழைவீழ்ச்சி (mm)",
+    moisture: "ஈரப்பசை (%)", soilType: "மண் வகை",
+    predictBtn: "பரிந்துரையைப் பெறுங்கள்",
+    emptyState: "உங்கள் மண் அளவீடுகளை நிரப்பி, பரிந்துரையைப் பெறுங்கள் பொத்தானை அழுத்தவும்.",
+    fertLabel: "மண் வளம்", cropLabel: "பரிந்துரைக்கப்பட்ட பயிர்", fertLabel2: "பரிந்துரைக்கப்பட்ட உரம்",
+    factorsLabel: "காரணம் (SHAP காரணிகள்)",
+    footer: "TerraIQ — ரேண்டம் ஃபாரெஸ்ட் + XGBoost, SHAP மூலம் விளக்கப்பட்டது",
+    chatTitle: "மண் & விவசாயம் பற்றி கேளுங்கள்", chatPlaceholder: "கேள்வி கேளுங்கள்...",
+    loading: "பகுப்பாய்வு..."
+  }
+};
 
-  const payload = {
-    N: parseFloat(document.getElementById('N').value),
-    P: parseFloat(document.getElementById('P').value),
-    K: parseFloat(document.getElementById('K').value),
-    pH: parseFloat(document.getElementById('pH').value),
-    EC: parseFloat(document.getElementById('EC').value),
-    OC: parseFloat(document.getElementById('OC').value),
-    S: parseFloat(document.getElementById('S').value),
-    Zn: parseFloat(document.getElementById('Zn').value),
-    Fe: parseFloat(document.getElementById('Fe').value),
-    Cu: parseFloat(document.getElementById('Cu').value),
-    Mn: parseFloat(document.getElementById('Mn').value),
-    B: parseFloat(document.getElementById('B').value),
-    temperature: parseFloat(document.getElementById('temperature').value),
-    humidity: parseFloat(document.getElementById('humidity').value),
-    rainfall: parseFloat(document.getElementById('rainfall').value),
-    moisture: parseFloat(document.getElementById('moisture').value),
-    soil_type: document.getElementById('soil_type').value
-  };
+let currentLang = 'en';
 
-  const resultsDiv = document.getElementById('results');
-  resultsDiv.innerHTML = '<p>Loading...</p>';
+function setLang(lang){
+  currentLang = lang;
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (translations[lang][key]) el.textContent = translations[lang][key];
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    if (translations[lang][key]) el.placeholder = translations[lang][key];
+  });
+}
+
+const fields = ['N','P','K','pH','EC','OC','S','Zn','Fe','Cu','Mn','B','temperature','humidity','rainfall','moisture'];
+let fertChartInstance = null, factorsChartInstance = null;
+
+function showError(msg){
+  const box = document.getElementById('errorBox');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+function hideError(){ document.getElementById('errorBox').style.display = 'none'; }
+
+async function runPredict(){
+  hideError();
+  const btn = document.getElementById('predictBtn');
+  btn.disabled = true;
+  btn.textContent = translations[currentLang].loading;
+
+  const payload = {};
+  fields.forEach(f => payload[f] = parseFloat(document.getElementById(f).value));
+  payload.soil_type = document.getElementById('soil_type').value;
 
   try {
-    const response = await fetch('/predict', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    const res = await fetch('/predict', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
     });
-
-    if (!response.ok) {
-      throw new Error(`Server returned ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    resultsDiv.innerHTML = `
-      <div class="result-card">
-        <h3>Soil Fertility: ${data.fertility.class}</h3>
-        <div class="confidence">Confidence: ${(data.fertility.confidence * 100).toFixed(1)}%</div>
-        <div class="factors">Top factors: ${data.fertility.top_factors.join(', ')}</div>
-      </div>
-
-      <div class="result-card">
-        <h3>Recommended Crop: ${data.recommended_crop.crop}</h3>
-        <div class="confidence">Confidence: ${(data.recommended_crop.confidence * 100).toFixed(1)}%</div>
-        <div class="factors">Top factors: ${data.recommended_crop.top_factors.join(', ')}</div>
-      </div>
-
-      <div class="result-card">
-        <h3>Recommended Fertilizer: ${data.recommended_fertilizer.fertilizer}</h3>
-        <div class="confidence">Confidence: ${(data.recommended_fertilizer.confidence * 100).toFixed(1)}%</div>
-        <div class="factors">Top factors: ${data.recommended_fertilizer.top_factors.join(', ')}</div>
-        ${data.recommended_fertilizer.note ? `<div class="note">${data.recommended_fertilizer.note}</div>` : ''}
-      </div>
-    `;
-  } catch (err) {
-    resultsDiv.innerHTML = `<div class="error">Error: ${err.message}. Make sure the backend server is running at http://127.0.0.1:8000</div>`;
+    if (!res.ok) throw new Error('Server returned ' + res.status);
+    const data = await res.json();
+    renderResult(data);
+  } catch(e) {
+    showError('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = translations[currentLang].predictBtn;
   }
+}
+
+function renderResult(data){
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('resultBlock').classList.add('show');
+
+  const badge = document.getElementById('fertBadge');
+  badge.textContent = data.fertility.class;
+  badge.className = 'fert-badge fert-' + data.fertility.class;
+
+  document.getElementById('cropName').textContent = data.recommended_crop.crop;
+  document.getElementById('fertName').textContent = data.recommended_fertilizer.fertilizer;
+  document.getElementById('fertNote').textContent = data.recommended_fertilizer.note || '';
+
+  const fertCtx = document.getElementById('fertChart').getContext('2d');
+  if (fertChartInstance) fertChartInstance.destroy();
+  fertChartInstance = new Chart(fertCtx, {
+    type: 'bar',
+    data: {
+      labels: [data.fertility.class],
+      datasets: [{ data: [data.fertility.confidence * 100], backgroundColor: '#5c7a4a', borderRadius: 4 }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false }, title: { display: true, text: 'Confidence %' } },
+      scales: { x: { max: 100 } }
+    }
+  });
+
+  const factorLabels = data.fertility.top_factors.map(f => f.split(' (')[0]);
+  const factorValues = data.fertility.top_factors.map(f => parseFloat(f.match(/\(([^)]+)\)/)[1]));
+  const factorsCtx = document.getElementById('factorsChart').getContext('2d');
+  if (factorsChartInstance) factorsChartInstance.destroy();
+  factorsChartInstance = new Chart(factorsCtx, {
+    type: 'bar',
+    data: {
+      labels: factorLabels,
+      datasets: [{
+        data: factorValues,
+        backgroundColor: factorValues.map(v => v > 0 ? '#5c7a4a' : '#a4503a'),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function toggleChat(){
+  document.getElementById('chatPanel').classList.toggle('open');
+}
+
+async function sendChat(){
+  const input = document.getElementById('chatInput');
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = '';
+
+  const messagesDiv = document.getElementById('chatMessages');
+  messagesDiv.innerHTML += `<div class="msg user">${message}</div>`;
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+  try {
+    const res = await fetch('/chat', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ message, language: currentLang })
+    });
+    const data = await res.json();
+    messagesDiv.innerHTML += `<div class="msg bot">${data.reply}</div>`;
+  } catch(e) {
+    messagesDiv.innerHTML += `<div class="msg bot">Sorry, something went wrong.</div>`;
+  }
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+document.getElementById('chatInput').addEventListener('keypress', function(e){
+  if (e.key === 'Enter') sendChat();
 });
 </script>
-
 </body>
 </html>

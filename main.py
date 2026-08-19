@@ -3,6 +3,8 @@ import joblib
 import shap
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 app = FastAPI(title="Soil Fertility & Crop Recommendation API")
@@ -13,6 +15,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 print("Loading models... (this happens once, when the server starts)")
 
@@ -39,11 +43,6 @@ print("All models loaded successfully.")
 
 FERTILITY_CLASSES = ['Low', 'Medium', 'High']
 
-# The crop recommendation model knows 22 crops (including fruits), but the
-# fertilizer dataset only has 11 categories (mostly grains/cash crops).
-# This maps each of the 22 possible predictions to its closest fertilizer
-# category, so Stage 3 always has a valid input — documented here rather
-# than hidden, since it's a real approximation.
 CROP_TO_FERTILIZER_CATEGORY = {
     'rice': 'Paddy',
     'maize': 'Maize',
@@ -90,20 +89,84 @@ class SoilInput(BaseModel):
     soil_type: str
 
 
-from fastapi.responses import FileResponse
+class ChatMessage(BaseModel):
+    message: str
+    language: str = "en"
+
+
+FAQ_KNOWLEDGE = [
+    {
+        "keywords": ["nitrogen", "n level", "high n", "low n"],
+        "en": "Nitrogen (N) is essential for leafy growth and chlorophyll production. Too little nitrogen causes yellowing leaves and stunted growth; too much can delay flowering and make plants overly leafy at the expense of fruit or grain. Ideal levels depend on the crop, but most crops thrive between 200-350 kg/ha.",
+        "ta": "நைட்ரஜன் (N) இலை வளர்ச்சிக்கும் பச்சையம் உற்பத்திக்கும் அவசியமானது. நைட்ரஜன் குறைவாக இருந்தால் இலைகள் மஞ்சளாகி வளர்ச்சி குன்றும்; அதிகமாக இருந்தால் பூக்கும் தாமதமாகி விளைச்சலை விட இலைகள் அதிகமாக வளரும். பயிரைப் பொறுத்து 200-350 கிலோ/ஹெக்டேர் அளவு சிறந்தது."
+    },
+    {
+        "keywords": ["phosphorus", "p level"],
+        "en": "Phosphorus (P) supports root development, flowering, and fruiting. Deficiency shows as purplish leaves and poor root growth. It's especially important in early plant growth stages for establishing a strong root system.",
+        "ta": "பாஸ்பரஸ் (P) வேர் வளர்ச்சி, பூக்கும் தன்மை மற்றும் காய்ப்பதற்கு உதவுகிறது. குறைபாடு இருந்தால் இலைகள் ஊதா நிறமாகி வேர் வளர்ச்சி பலவீனமாக இருக்கும். செடி வளர்ச்சியின் ஆரம்ப கட்டத்தில் இது மிக முக்கியம்."
+    },
+    {
+        "keywords": ["potassium", "k level"],
+        "en": "Potassium (K) helps plants regulate water, resist disease, and improve overall crop quality (like fruit size and taste). Low potassium often shows as brown, scorched-looking leaf edges.",
+        "ta": "பொட்டாசியம் (K) செடிகள் நீரை கட்டுப்படுத்தவும், நோய் எதிர்ப்பு சக்தி பெறவும், விளைச்சலின் தரத்தை மேம்படுத்தவும் உதவுகிறது. பொட்டாசியம் குறைவாக இருந்தால் இலை விளிம்புகள் பழுப்பு நிறமாக காணப்படும்."
+    },
+    {
+        "keywords": ["ph", "acidic", "alkaline"],
+        "en": "Soil pH measures acidity or alkalinity, on a scale from 0-14 (7 is neutral). Most crops prefer a slightly acidic to neutral pH of 6.0-7.5, where nutrients are most available. Very acidic or alkaline soil can lock up nutrients even if they're present.",
+        "ta": "மண்ணின் pH அமிலத்தன்மை அல்லது காரத்தன்மையை அளவிடுகிறது (0-14 அளவீட்டில், 7 நடுநிலையானது). பெரும்பாலான பயிர்கள் 6.0-7.5 pH ஐ விரும்புகின்றன, அங்கு ஊட்டச்சத்துக்கள் அதிகம் கிடைக்கும். மிக அமிலத்தன்மை அல்லது காரத்தன்மை கொண்ட மண் ஊட்டச்சத்துக்களை பூட்டி வைக்கும்."
+    },
+    {
+        "keywords": ["organic carbon", "organic matter"],
+        "en": "Organic carbon indicates how much decomposed plant/animal matter is in your soil. Higher organic carbon improves water retention, nutrient availability, and soil structure. It's one of the strongest indicators of long-term soil health.",
+        "ta": "கரிம கார்பன் உங்கள் மண்ணில் எவ்வளவு சிதைந்த தாவர/விலங்கு பொருள் உள்ளது என்பதைக் குறிக்கிறது. அதிக கரிம கார்பன் நீர் தேக்கத்தையும், ஊட்டச்சத்து கிடைப்பையும், மண் அமைப்பையும் மேம்படுத்துகிறது."
+    },
+    {
+        "keywords": ["fertilizer", "urea", "dap", "npk fertilizer"],
+        "en": "Urea is a nitrogen-rich fertilizer, best for leafy growth. DAP (Di-Ammonium Phosphate) provides both nitrogen and phosphorus, ideal for root and flower development. Choosing the right fertilizer depends on which nutrient your soil test shows is lacking.",
+        "ta": "யூரியா நைட்ரஜன் நிறைந்த உரம், இலை வளர்ச்சிக்கு சிறந்தது. DAP (டை-அம்மோனியம் பாஸ்பேட்) நைட்ரஜன் மற்றும் பாஸ்பரஸ் இரண்டையும் வழங்குகிறது, வேர் மற்றும் பூ வளர்ச்சிக்கு ஏற்றது."
+    },
+    {
+        "keywords": ["crop rotation", "rotate crops"],
+        "en": "Crop rotation means growing different crops in the same field across seasons. It prevents soil nutrient depletion, breaks pest and disease cycles, and improves long-term soil health compared to growing the same crop repeatedly.",
+        "ta": "பயிர் சுழற்சி என்பது ஒரே வயலில் பருவங்களுக்கு இடையே வெவ்வேறு பயிர்களை வளர்ப்பதாகும். இது மண் ஊட்டச்சத்து குறைவதைத் தடுக்கிறது, பூச்சி மற்றும் நோய் சுழற்சிகளை உடைக்கிறது."
+    },
+    {
+        "keywords": ["how does this app work", "how does this work", "explain the app"],
+        "en": "This app uses three machine learning models: one predicts your soil's fertility (Low/Medium/High) from nutrient readings, a second recommends the best crop for your conditions, and a third recommends a fertilizer — each explained using SHAP, a technique that shows exactly which factors drove the prediction.",
+        "ta": "இந்த ஆப் மூன்று இயந்திர கற்றல் மாதிரிகளைப் பயன்படுத்துகிறது: ஒன்று உங்கள் மண்ணின் வளத்தன்மையை கணிக்கிறது, இரண்டாவது சிறந்த பயிரை பரிந்துரைக்கிறது, மூன்றாவது உரத்தை பரிந்துரைக்கிறது."
+    }
+]
+
+DEFAULT_REPLY = {
+    "en": "I can help with questions about NPK nutrients, soil pH, organic carbon, fertilizers, and crop rotation. Try asking about one of these topics, or check your prediction results above for specifics on your own soil sample.",
+    "ta": "நான் NPK ஊட்டச்சத்துக்கள், மண் pH, கரிம கார்பன், உரங்கள் மற்றும் பயிர் சுழற்சி பற்றிய கேள்விகளுக்கு உதவ முடியும். இந்த தலைப்புகளில் ஒன்றைப் பற்றி கேளுங்கள்."
+}
+
 
 @app.get("/")
 def serve_frontend():
     return FileResponse("frontend/index.html")
+
 
 @app.get("/health")
 def health_check():
     return {"status": "API is running", "models_loaded": True}
 
 
+@app.post("/chat")
+def chat(chat_msg: ChatMessage):
+    lang = chat_msg.language if chat_msg.language in ("en", "ta") else "en"
+    message_lower = chat_msg.message.lower()
+
+    for entry in FAQ_KNOWLEDGE:
+        if any(keyword in message_lower for keyword in entry["keywords"]):
+            return {"reply": entry[lang]}
+
+    return {"reply": DEFAULT_REPLY[lang]}
+
+
 @app.post("/predict")
 def predict(soil: SoilInput):
-    # ---------------- STAGE 1: FERTILITY ----------------
     fertility_row = pd.DataFrame([{
         'N': soil.N, 'P': soil.P, 'K': soil.K, 'pH': soil.pH,
         'EC': soil.EC, 'OC': soil.OC, 'S': soil.S, 'Zn': soil.Zn,
@@ -123,7 +186,6 @@ def predict(soil: SoilInput):
     )[:3]
     fertility_top_factors = [f"{name} ({'+' if val > 0 else ''}{val:.3f})" for name, val in fert_contributions]
 
-    # ---------------- STAGE 2: CROP ----------------
     crop_row = pd.DataFrame([{
         'N': soil.N, 'P': soil.P, 'K': soil.K,
         'temperature': soil.temperature, 'humidity': soil.humidity,
@@ -143,7 +205,6 @@ def predict(soil: SoilInput):
     )[:3]
     crop_top_factors = [f"{name} ({'+' if val > 0 else ''}{val:.3f})" for name, val in crop_contributions]
 
-    # ---------------- STAGE 3: FERTILIZER (chained off predicted crop) ----------------
     mapped_crop = CROP_TO_FERTILIZER_CATEGORY.get(predicted_crop, 'Ground Nuts')
     crop_was_approximated = mapped_crop != predicted_crop
 
@@ -170,7 +231,6 @@ def predict(soil: SoilInput):
     )[:3]
     fertilizer_top_factors = [f"{name} ({'+' if val > 0 else ''}{val:.3f})" for name, val in fertilizer_contributions]
 
-    # ---------------- RETURN ----------------
     return {
         "fertility": {
             "class": fertility_class,
